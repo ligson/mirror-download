@@ -1,0 +1,23 @@
+mirror-download
+==========
+
+
+```yaml
+app:
+  name: mirror-download
+  job:
+    limit: 5
+    retry: 3
+    cron: "0/30 * * * * ?"
+    #cron: "0 0 1 ? * 1"
+  mirrors:
+    - name: mirror1
+      url: https://mirrors.aliyun.com/alpine/v3.11/releases/aarch64/netboot/dtbs-lts/
+      type: aliyun
+      dest: E:/work-org/yonyou/yondif/code/mirror-download/tmp/dtbs-lts
+    - name:
+      url: https://update.cs2c.com.cn/NS/V10/V10SP3-2403/os/adv/lic/updates/x86_64/repodata/
+      type: http
+      dest: E:/work-org/yonyou/yondif/code/mirror-download/tmp/repodata
+
+```

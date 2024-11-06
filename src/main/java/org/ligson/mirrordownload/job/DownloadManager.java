@@ -1,6 +1,7 @@
 package org.ligson.mirrordownload.job;
 
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.concurrent.BasicThreadFactory;
 import org.ligson.mirrordownload.config.vo.AppConfig;
 import org.ligson.mirrordownload.http.HttpHeaders;
 import org.ligson.mirrordownload.http.SimpleHttpClient;
@@ -22,7 +23,8 @@ public class DownloadManager {
         this.downloadQueue = new LinkedBlockingQueue<>(); // 初始化下载队列
         this.maxConcurrentDownloads = appConfig.getApp().getJob().getLimit();
         this.maxRetries = appConfig.getApp().getJob().getRetry();
-        this.executorService = Executors.newFixedThreadPool(maxConcurrentDownloads); // 创建固定大小的线程池
+        BasicThreadFactory threadFactory = new BasicThreadFactory.Builder().namingPattern("download-worker-%d").build();
+        this.executorService = Executors.newFixedThreadPool(maxConcurrentDownloads, threadFactory); // 创建固定大小的线程池
         startDownloadWorkers(); // 启动下载工作线程
     }
 

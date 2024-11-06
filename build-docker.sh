@@ -6,14 +6,14 @@ rm -rf target/*
 mvn package -Dmaven.test.skip=true
 cd target
 pkVersion=`ls|grep jar|sed 's/.jar//'|sed 's/mirror-download-//'`
-mv mirror-download-${pkVersion}-mirror-download.tar.gz mirror-download.tar.gz
+mv ${pkgName}-${pkVersion}-${pkgName}.tar.gz ${pkgName}.tar.gz
 mkdir docker-tmp
-tar -zxvf mirror-download.tar.gz -C docker-tmp/
+tar -zxvf ${pkgName}.tar.gz -C docker-tmp/
 cd docker-tmp
-mv mirror-download-${pkVersion} mirror-download
+mv ${pkgName}-${pkVersion} ${pkgName}
 cp ../../Dockerfile .
 cp ../../entrypoint.sh .
-docker build -t dockerhub.yonyougov.top/public/mirror-download:$pkVersion .
-docker push dockerhub.yonyougov.top/public/mirror-download:$pkVersion
+docker build -t dockerhub.yonyougov.top/public/${pkgName}:$pkVersion .
+docker push dockerhub.yonyougov.top/public/${pkgName}:$pkVersion
 
 

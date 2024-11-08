@@ -73,20 +73,26 @@ public class SimpleHttpClient {
 
         // 发送请求并处理响应
         HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(Path.of(dest.getPath()), StandardOpenOption.CREATE, StandardOpenOption.APPEND));
+        if (response.statusCode() == 200) {
+            // 检查响应状态和Content-Length
+            long contentLength = response.headers().firstValue("Content-Length").map(Long::parseLong).orElse(0L);
 
-        // 检查响应状态和Content-Length
-        long contentLength = response.headers().firstValue("Content-Length").map(Long::parseLong).orElse(0L);
-
-        if (contentLength == 0) {
-            log.debug("文件下载完成，无需下载或目标文件已是最新版本，跳过下载。");
-        } else if (contentLength < existingFileSize) {
-            // 如果远程文件小于本地文件，则删除本地文件并重新下载
-            dest.delete();
-            log.debug("远程文件小于现有文件，删除本地文件并重新下载。");
-            download(url, dest, headers); // 重新下载
+            if (contentLength == 0) {
+                log.debug("文件下载完成，无需下载或目标文件已是最新版本，跳过下载。");
+            } else if (contentLength < existingFileSize) {
+                // 如果远程文件小于本地文件，则删除本地文件并重新下载
+                dest.delete();
+                log.debug("远程文件小于现有文件，删除本地文件并重新下载。");
+                download(url, dest, headers); // 重新下载
+            } else {
+                log.debug("从url：{}下载文件:{}成功,耗时:{}s", url, dest.getAbsolutePath(), (System.currentTimeMillis() - startTime) / 1000.0);
+            }
         } else {
-            log.debug("从url：{}下载文件:{}成功,耗时:{}s", url, dest.getAbsolutePath(), (System.currentTimeMillis() - startTime) / 1000.0);
+            log.error("从url：{}下载文件:{}失败,状态码：{}", url, dest.getAbsolutePath(), response.statusCode());
+            Thread.sleep(1000); // 失败重试
+            throw new Exception("下载失败，状态码：" + response.statusCode());
         }
+
     }
 }
 

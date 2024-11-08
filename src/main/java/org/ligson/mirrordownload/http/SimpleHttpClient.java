@@ -1,7 +1,6 @@
 package org.ligson.mirrordownload.http;
 
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.collections4.CollectionUtils;
 
 import java.io.File;
 import java.net.URI;
@@ -52,18 +51,42 @@ public class SimpleHttpClient {
             dest.getParentFile().mkdirs();
         }
 
-        // 获取目标文件大小
-        long existingFileSize = dest.exists() ? dest.length() : 0;
-
         // 创建HttpClient
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofMinutes(3)).build();
 
+        // 创建HttpRequest以获取远程文件大小
+        HttpRequest headRequest = HttpRequest.newBuilder(new URI(url))
+                .method("HEAD", HttpRequest.BodyPublishers.noBody())
+                .build();
+
+        HttpResponse<Void> headResponse = client.send(headRequest, HttpResponse.BodyHandlers.discarding());
+
+        // 检查响应状态
+        if (headResponse.statusCode() != 200) {
+            log.error("无法获取远程文件大小，状态码：{}", headResponse.statusCode());
+            throw new Exception("获取远程文件大小失败，状态码：" + headResponse.statusCode());
+        }
+
+        // 获取远程文件大小
+        long remoteFileSize = headResponse.headers().firstValue("Content-Length").map(Long::parseLong).orElse(0L);
+        long existingFileSize = dest.exists() ? dest.length() : 0;
+
+        // 如果本地文件存在并且文件大小相等，直接返回
+        if (dest.exists() && existingFileSize >= remoteFileSize) {
+            log.debug("本地文件已是最新版本，无需下载。");
+            return;
+        }
+
         // 构建请求，添加Range头
         HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(new URI(url))
-                .GET()
-                .header("Range", "bytes=" + existingFileSize + "-"); // 请求续传
+                .GET();
 
-        // 判断cookie是否为空，如果不为空则添加到请求头
+        // 如果本地文件小于远程文件，添加Range头实现断点续传
+        if (existingFileSize < remoteFileSize) {
+            requestBuilder.header("Range", "bytes=" + existingFileSize + "-");
+        }
+
+        // 如果headers不为空，则添加到请求头
         if (headers != null) {
             headers.getHeaders().forEach(requestBuilder::header);
         }
@@ -72,27 +95,17 @@ public class SimpleHttpClient {
         HttpRequest request = requestBuilder.build();
 
         // 发送请求并处理响应
-        HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(Path.of(dest.getPath()), StandardOpenOption.CREATE, StandardOpenOption.APPEND));
-        if (response.statusCode() == 200) {
-            // 检查响应状态和Content-Length
-            long contentLength = response.headers().firstValue("Content-Length").map(Long::parseLong).orElse(0L);
+        HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(Path.of(dest.getPath()),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.APPEND));
 
-            if (contentLength == 0) {
-                log.debug("文件下载完成，无需下载或目标文件已是最新版本，跳过下载。");
-            } else if (contentLength < existingFileSize) {
-                // 如果远程文件小于本地文件，则删除本地文件并重新下载
-                dest.delete();
-                log.debug("远程文件小于现有文件，删除本地文件并重新下载。");
-                download(url, dest, headers); // 重新下载
-            } else {
-                log.debug("从url：{}下载文件:{}成功,耗时:{}s", url, dest.getAbsolutePath(), (System.currentTimeMillis() - startTime) / 1000.0);
-            }
+        if (response.statusCode() == 200 || response.statusCode() == 206) {
+            log.debug("从url：{}下载文件:{}成功,耗时:{}s", url, dest.getAbsolutePath(), (System.currentTimeMillis() - startTime) / 1000.0);
         } else {
             log.error("从url：{}下载文件:{}失败,状态码：{}", url, dest.getAbsolutePath(), response.statusCode());
-            Thread.sleep(1000); // 失败重试
             throw new Exception("下载失败，状态码：" + response.statusCode());
         }
-
     }
+
 }
 
